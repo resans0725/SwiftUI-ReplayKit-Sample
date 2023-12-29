@@ -11,8 +11,12 @@ import Photos
 
 final class ContentViewModel: ObservableObject {
     let recorder = RPScreenRecorder.shared()
-    @Published var isRecording = false
-    @Published var url: URL?
+        @Published var isRecording = false
+        @Published var url: URL?
+        @Published var isSaved = false
+        @Published var showCountdown = false
+        @Published var countdownValue = 3
+        
     
     func onTapRecordingButton() {
         if isRecording {
@@ -22,7 +26,7 @@ final class ContentViewModel: ObservableObject {
                     print(self.url ?? "")
                     self.isRecording = false
                     
-                    if let url = self.url {
+                    if self.url != nil {
                         self.saveVideoToCameraRoll()
                     }
                 } catch {
@@ -30,15 +34,34 @@ final class ContentViewModel: ObservableObject {
                 }
             }
         } else {
-            startRecording { error in
-                if let error = error {
-                    print(error.localizedDescription)
-                    return
+            startRecordingWithCountdown()
+        }
+    }
+    
+    func startRecordingWithCountdown() {
+        showCountdown = true
+        countdownValue = 3
+        
+        let timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] timer in
+            guard let self = self else { return }
+            self.countdownValue -= 1
+            
+            if self.countdownValue == 0 {
+                timer.invalidate()
+                self.showCountdown = false
+                
+                startRecording { error in
+                    if let error = error {
+                        print(error.localizedDescription)
+                        return
+                    }
+                }
+                Task { @MainActor in
+                    self.isRecording = true
                 }
             }
-            
-            isRecording = true
         }
+        timer.tolerance = 0.1
     }
     
     private func startRecording(enableMicorphone: Bool = false, completion: @escaping (Error?) -> ()) {
@@ -69,6 +92,7 @@ final class ContentViewModel: ObservableObject {
            } completionHandler: { success, error in
                if success {
                    print("Video saved to Camera Roll successfully.")
+                   self.isSaved = true
                } else {
                    if let error = error {
                        print("Error saving video to Camera Roll: \(error.localizedDescription)")
